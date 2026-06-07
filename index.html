@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maisy Gymnastics • Analytics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+            background: #0a0a0a;
+            color: #f1f1f1;
+        }
+        
+        .heading-font {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .glass {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        
+        .nav-link.active {
+            border-bottom: 3px solid #ff00aa;
+            color: #ff00aa;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-4px);
+        }
+        
+        .medal-gold { background-color: #facc15; color: #1f2937; font-weight: 700; }
+        .medal-silver { background-color: #e5e7eb; color: #1f2937; font-weight: 700; }
+        .medal-bronze { background-color: #fcd34d; color: #1f2937; font-weight: 700; }
+        
+        .medal-emoji {
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+
+        .pb-badge {
+            background-color: #22c55e;
+            color: #111827;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 9999px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        
+        th, td {
+            padding: 16px 24px;
+            vertical-align: middle;
+        }
+        
+        thead th {
+            background: #18181b;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a3a3a3;
+            border-bottom: 1px solid #27272a;
+        }
+        
+        tbody tr {
+            border-bottom: 1px solid #27272a;
+        }
+        
+        tbody tr:hover {
+            background: rgba(255, 0, 170, 0.08);
+        }
+        
+        .score-cell {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .filter-bar {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- NAVBAR -->
+    <nav class="border-b border-white/10 bg-zinc-950 sticky top-0 z-50">
+        <div class="max-w-screen-2xl mx-auto px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-[#ff00aa] via-[#a020f0] to-[#00f0ff] rounded-2xl flex items-center justify-center text-3xl shadow-xl">🏅</div>
+                    <div>
+                        <span class="heading-font text-3xl tracking-tighter">Maisy</span>
+                        <span class="heading-font text-3xl tracking-tighter bg-gradient-to-r from-[#ff00aa] to-[#a020f0] bg-clip-text text-transparent">Analytics</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-x-10 text-sm font-medium">
+                    <a onclick="navigateTo('overview')" class="nav-link active cursor-pointer" id="nav-overview">Overview</a>
+                    <a onclick="navigateTo('trends')" class="nav-link cursor-pointer" id="nav-trends">Trends</a>
+                    <a onclick="navigateTo('apparatus')" class="nav-link cursor-pointer" id="nav-apparatus">Apparatus</a>
+                    <a onclick="navigateTo('rankings')" class="nav-link cursor-pointer" id="nav-rankings">Rankings</a>
+                    <a onclick="navigateTo('data')" class="nav-link cursor-pointer" id="nav-data">Raw Data</a>
+                </div>
+
+                <div class="flex items-center gap-x-4">
+                    <button onclick="exportCSV()" 
+                            class="flex items-center gap-x-2 px-6 h-10 rounded-3xl bg-white/10 hover:bg-white/20 transition-all text-sm font-semibold">
+                        ↓ Export CSV
+                    </button>
+                    <div class="px-4 py-1.5 text-xs bg-emerald-500/10 text-emerald-400 rounded-3xl border border-emerald-400/30">
+                        Updated: 19 Apr 2026
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-screen-2xl mx-auto px-8 py-6">
+
+        <!-- GLOBAL FILTER BAR -->
+        <div class="filter-bar mb-8 rounded-3xl p-5 flex flex-wrap items-center gap-x-8 gap-y-4 text-sm">
+            <div class="flex items-center gap-x-3">
+                <span class="font-medium text-zinc-400">YEAR</span>
+                <select id="yearFilter" onchange="applyFilters()" class="bg-zinc-900 border border-white/20 rounded-2xl px-4 py-2 text-white focus:outline-none focus:border-[#ff00aa]">
+                    <option value="All">All Years</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center gap-x-3">
+                <span class="font-medium text-zinc-400">COMPETITION</span>
+                <select id="compFilter" onchange="applyFilters()" class="bg-zinc-900 border border-white/20 rounded-2xl px-4 py-2 text-white focus:outline-none focus:border-[#ff00aa]">
+                    <option value="All">All Competitions</option>
+                </select>
+            </div>
+
+            <button onclick="resetFilters()" 
+                    class="ml-auto px-6 py-2 text-zinc-400 hover:text-white border border-white/20 rounded-3xl text-sm font-medium transition-colors">
+                Reset Filters
+            </button>
+
+            <div id="filterInfo" class="text-xs text-emerald-400 ml-auto flex items-center gap-x-2">
+                <span class="bg-emerald-400/10 px-3 py-1 rounded-3xl">Showing all 6 competitions</span>
+            </div>
+        </div>
+
+        <!-- OVERVIEW -->
+        <div id="overview">
+            <div class="glass rounded-3xl p-10 flex flex-col lg:flex-row gap-10">
+                <div class="flex-1">
+                    <div class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-400 to-cyan-400 text-black font-bold px-6 py-2 rounded-3xl text-sm mb-6">
+                        <span class="animate-pulse">●</span> LATEST — GRADING
+                    </div>
+                    <h1 class="heading-font text-6xl tracking-tighter">1st Overall • 62.90</h1>
+                    <p class="text-2xl text-zinc-400 mt-2">April 19, 2026</p>
+
+                    <div class="mt-10 grid grid-cols-2 gap-8">
+                        <div><div class="text-5xl font-semibold">13.50</div><div class="text-[#a020f0]">Bars • 1st</div></div>
+                        <div><div class="text-5xl font-semibold">13.10</div><div class="text-[#ff00aa]">Vault • 2nd</div></div>
+                        <div><div class="text-5xl font-semibold">12.50</div><div class="text-[#00f0ff]">Floor • 1st</div></div>
+                        <div><div class="text-5xl font-semibold">12.30</div><div class="text-lime-400">Beam • 2nd</div></div>
+                    </div>
+                </div>
+                <div class="flex-1 border-l border-white/10 pl-10">
+                    <div class="text-7xl font-bold bg-gradient-to-br from-[#ff00aa] via-[#a020f0] to-[#00f0ff] bg-clip-text text-transparent">+21.15</div>
+                    <p class="text-zinc-400 text-xl">points since first competition</p>
+                    <div class="mt-8 text-3xl font-medium text-emerald-400">Career Average: 11.85</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mt-10">
+                <div class="kpi-card glass rounded-3xl p-7">
+                    <div class="text-zinc-400 text-xs tracking-widest">BEST TOTAL</div>
+                    <div class="text-5xl font-semibold mt-4">62.90</div>
+                    <div class="text-emerald-400 text-sm">Grading</div>
+                </div>
+                <div class="kpi-card glass rounded-3xl p-7">
+                    <div class="text-zinc-400 text-xs tracking-widest">STRONGEST APPARATUS</div>
+                    <div class="text-5xl font-semibold mt-4 text-[#ff00aa]">Vault</div>
+                    <div class="text-sm text-zinc-400">Avg 12.57</div>
+                </div>
+                <div class="kpi-card glass rounded-3xl p-7">
+                    <div class="text-zinc-400 text-xs tracking-widest">BIGGEST GAIN</div>
+                    <div class="text-5xl font-semibold mt-4 text-[#a020f0]">Bars +4.2</div>
+                </div>
+                <div class="kpi-card glass rounded-3xl p-7">
+                    <div class="text-zinc-400 text-xs tracking-widest">AVG POSITION</div>
+                    <div class="text-5xl font-semibold mt-4">2.5</div>
+                </div>
+                <div class="kpi-card glass rounded-3xl p-7 bg-gradient-to-br from-[#ff00aa]/10 to-[#a020f0]/10 border border-[#ff00aa]/30">
+                    <div class="text-[#ff00aa] text-xs font-medium tracking-widest">NEXT GOAL</div>
+                    <div class="text-lg font-semibold mt-4">Top 2 in every apparatus</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TRENDS -->
+        <div id="trends" class="hidden">
+            <h2 class="heading-font text-4xl tracking-tighter mb-8">Score Trends Over Time</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass rounded-3xl p-8">
+                    <h3 class="font-medium mb-6">Total &amp; Average Scores</h3>
+                    <div class="h-96"><canvas id="totalChart"></canvas></div>
+                </div>
+                <div class="glass rounded-3xl p-8">
+                    <h3 class="font-medium mb-6">Individual Apparatus Scores</h3>
+                    <div class="h-96"><canvas id="apparatusChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- APPARATUS -->
+        <div id="apparatus" class="hidden">
+            <h2 class="heading-font text-4xl tracking-tighter mb-8">Apparatus Performance</h2>
+            
+            <div class="glass rounded-3xl p-8 mb-8">
+                <h3 class="font-medium mb-6">Career Average Score by Apparatus (Best at Top)</h3>
+                <div class="h-96"><canvas id="avgApparatusChart"></canvas></div>
+            </div>
+
+            <div class="glass rounded-3xl p-8">
+                <h3 class="font-medium mb-8 flex items-center gap-x-3">
+                    <span>📊</span> High Scores • Latest vs Average
+                </h3>
+                <div id="apparatusExtraAnalytics" class="grid grid-cols-2 md:grid-cols-5 gap-6"></div>
+            </div>
+        </div>
+
+        <!-- RANKINGS -->
+        <div id="rankings" class="hidden">
+            <h2 class="heading-font text-4xl tracking-tighter mb-8">Positions Over Time</h2>
+            <div class="glass rounded-3xl p-8">
+                <div class="h-96"><canvas id="positionsChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- RAW DATA -->
+        <div id="data" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="heading-font text-4xl tracking-tighter">Full Competition History</h2>
+                <button onclick="exportCSV()" class="text-[#ff00aa] hover:text-pink-400 flex items-center gap-x-2 text-sm font-medium">
+                    ↓ Export CSV
+                </button>
+            </div>
+            <div class="glass rounded-3xl overflow-hidden">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th class="text-left">DATE</th>
+                            <th class="text-left">COMPETITION</th>
+                            <th class="text-right">VAULT</th>
+                            <th class="text-right">BARS</th>
+                            <th class="text-right">BEAM</th>
+                            <th class="text-right">FLOOR</th>
+                            <th class="text-right">RANGE</th>
+                            <th class="text-right">TOTAL</th>
+                            <th class="text-right">AVG</th>
+                            <th class="text-center">OVERALL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === UPDATED DATA WITH RENAMED COMPETITIONS ===
+        let rawData = [
+            {"date":"2024-10-06","competition":"Suffolk Tin","vault":11.15,"bars":9.3,"beam":10.5,"floor":10.8,"range":null,"total":41.75,"average":10.44,"vault_pos":4,"bars_pos":9,"beam_pos":2,"floor_pos":2,"range_pos":null,"overall_pos":2},
+            {"date":"2025-02-08","competition":"PV Pre Grades","vault":13.3,"bars":12.1,"beam":12.9,"floor":12.05,"range":12.1,"total":62.45,"average":12.49,"vault_pos":1,"bars_pos":13,"beam_pos":1,"floor_pos":5,"range_pos":8,"overall_pos":4},
+            {"date":"2025-04-13","competition":"Grading","vault":12.95,"bars":11.4,"beam":12.05,"floor":13.05,"range":12.1,"total":61.55,"average":12.31,"vault_pos":1,"bars_pos":3,"beam_pos":2,"floor_pos":2,"range_pos":2,"overall_pos":2},
+            {"date":"2025-10-12","competition":"Suffolk Zinc","vault":11.85,"bars":10.3,"beam":10.65,"floor":11.1,"range":null,"total":43.9,"average":10.97,"vault_pos":4,"bars_pos":8,"beam_pos":6,"floor_pos":2,"range_pos":null,"overall_pos":4},
+            {"date":"2026-02-09","competition":"PV Pre Grades","vault":13.05,"bars":13.13,"beam":12.1,"floor":12.15,"range":10.95,"total":61.38,"average":12.28,"vault_pos":5,"bars_pos":1,"beam_pos":2,"floor_pos":2,"range_pos":16,"overall_pos":2},
+            {"date":"2026-04-19","competition":"Grading","vault":13.1,"bars":13.5,"beam":12.3,"floor":12.5,"range":11.5,"total":62.9,"average":12.58,"vault_pos":2,"bars_pos":1,"beam_pos":2,"floor_pos":1,"range_pos":1,"overall_pos":1}
+        ];
+
+        let filteredData = [...rawData];
+        let currentSection = 'overview';
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        }
+
+        function getMedalEmoji(pos) {
+            if (pos === 1) return '<span class="medal-emoji">🥇</span>';
+            if (pos === 2) return '<span class="medal-emoji">🥈</span>';
+            if (pos === 3) return '<span class="medal-emoji">🥉</span>';
+            return '';
+        }
+
+        function getPersonalBests(data) {
+            if (data.length === 0) return {};
+            const rangeScores = data.filter(r => r.range !== null).map(r => r.range);
+            return {
+                vault: Math.max(...data.map(r => r.vault)),
+                bars: Math.max(...data.map(r => r.bars)),
+                beam: Math.max(...data.map(r => r.beam)),
+                floor: Math.max(...data.map(r => r.floor)),
+                range: rangeScores.length > 0 ? Math.max(...rangeScores) : null,
+                total: Math.max(...data.map(r => r.total))
+            };
+        }
+
+        function populateTable() {
+            const tbody = document.getElementById('tableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            
+            const pbs = getPersonalBests(filteredData);
+
+            filteredData.forEach(row => {
+                const isPBVault = row.vault === pbs.vault;
+                const isPBBars = row.bars === pbs.bars;
+                const isPBBeam = row.beam === pbs.beam;
+                const isPBFloor = row.floor === pbs.floor;
+                const isPBRange = row.range !== null && row.range === pbs.range;
+                const isPBTotal = row.total === pbs.total;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4">${row.date}</td>
+                    <td class="px-6 py-4">${row.competition}</td>
+                    <td class="score-cell px-6 py-4">${row.vault} ${getMedalEmoji(row.vault_pos)} ${isPBVault ? '<span class="pb-badge">PB</span>' : ''}</td>
+                    <td class="score-cell px-6 py-4">${row.bars} ${getMedalEmoji(row.bars_pos)} ${isPBBars ? '<span class="pb-badge">PB</span>' : ''}</td>
+                    <td class="score-cell px-6 py-4">${row.beam} ${getMedalEmoji(row.beam_pos)} ${isPBBeam ? '<span class="pb-badge">PB</span>' : ''}</td>
+                    <td class="score-cell px-6 py-4">${row.floor} ${getMedalEmoji(row.floor_pos)} ${isPBFloor ? '<span class="pb-badge">PB</span>' : ''}</td>
+                    <td class="score-cell px-6 py-4">${row.range !== null ? row.range : '-'} ${getMedalEmoji(row.range_pos)} ${isPBRange ? '<span class="pb-badge">PB</span>' : ''}</td>
+                    <td class="score-cell px-6 py-4 font-semibold">${row.total} ${isPBTotal ? '<span class="pb-badge">PB</span>' : ''}</td>
+                    <td class="score-cell px-6 py-4">${row.average}</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="inline-flex w-7 h-7 items-center justify-center rounded-2xl text-xs font-bold ${row.overall_pos === 1 ? 'medal-gold' : row.overall_pos === 2 ? 'medal-silver' : row.overall_pos === 3 ? 'medal-bronze' : 'bg-white/10'}">
+                            ${row.overall_pos}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function populateCompetitionFilter() {
+            const select = document.getElementById('compFilter');
+            if (!select) return;
+            const unique = [...new Set(rawData.map(r => r.competition))];
+            unique.forEach(comp => {
+                const opt = document.createElement('option');
+                opt.value = comp;
+                opt.textContent = comp;
+                select.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const yearVal = document.getElementById('yearFilter').value;
+            const compVal = document.getElementById('compFilter').value;
+
+            filteredData = rawData.filter(row => {
+                let match = true;
+                if (yearVal !== 'All') match = match && row.date.startsWith(yearVal);
+                if (compVal !== 'All') match = match && row.competition === compVal;
+                return match;
+            });
+
+            const infoEl = document.getElementById('filterInfo');
+            if (infoEl) {
+                infoEl.innerHTML = `<span class="bg-emerald-400/10 px-3 py-1 rounded-3xl">${filteredData.length} competition${filteredData.length === 1 ? '' : 's'} shown</span>`;
+            }
+
+            populateTable();
+
+            if (currentSection === 'trends') { createTotalChart(); createApparatusChart(); }
+            if (currentSection === 'apparatus') { createAvgApparatusChart(); renderApparatusAnalytics(); }
+            if (currentSection === 'rankings') { createPositionsChart(); }
+        }
+
+        function resetFilters() {
+            document.getElementById('yearFilter').value = 'All';
+            document.getElementById('compFilter').value = 'All';
+            filteredData = [...rawData];
+            const infoEl = document.getElementById('filterInfo');
+            if (infoEl) infoEl.innerHTML = `<span class="bg-emerald-400/10 px-3 py-1 rounded-3xl">Showing all 6 competitions</span>`;
+            populateTable();
+            if (currentSection === 'trends') { createTotalChart(); createApparatusChart(); }
+            if (currentSection === 'apparatus') { createAvgApparatusChart(); renderApparatusAnalytics(); }
+            if (currentSection === 'rankings') { createPositionsChart(); }
+        }
+
+        let charts = {};
+
+        function createTotalChart() {
+            const canvas = document.getElementById('totalChart');
+            if (!canvas) return;
+            if (charts.total) charts.total.destroy();
+            charts.total = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: filteredData.map(d => formatDate(d.date)), datasets: [
+                    { label: 'Total Score', data: filteredData.map(d => d.total), borderColor: '#ff00aa', borderWidth: 5, tension: 0.3 },
+                    { label: 'Average Score', data: filteredData.map(d => d.average), borderColor: '#00f0ff', borderWidth: 4, tension: 0.3 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ddd' } } } }
+            });
+        }
+
+        function createApparatusChart() {
+            const canvas = document.getElementById('apparatusChart');
+            if (!canvas) return;
+            if (charts.apparatus) charts.apparatus.destroy();
+            charts.apparatus = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: filteredData.map(d => formatDate(d.date)), datasets: [
+                    { label: 'Vault', data: filteredData.map(d => d.vault), borderColor: '#ff00aa', tension: 0.2 },
+                    { label: 'Bars', data: filteredData.map(d => d.bars), borderColor: '#a020f0', tension: 0.2 },
+                    { label: 'Beam', data: filteredData.map(d => d.beam), borderColor: '#aaff00', tension: 0.2 },
+                    { label: 'Floor', data: filteredData.map(d => d.floor), borderColor: '#00f0ff', tension: 0.2 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ddd' } } } }
+            });
+        }
+
+        function createAvgApparatusChart() {
+            const canvas = document.getElementById('avgApparatusChart');
+            if (!canvas) return;
+            if (charts.avg) charts.avg.destroy();
+
+            const avgVault = filteredData.reduce((a,b)=>a+b.vault,0)/filteredData.length || 0;
+            const avgBars = filteredData.reduce((a,b)=>a+b.bars,0)/filteredData.length || 0;
+            const avgBeam = filteredData.reduce((a,b)=>a+b.beam,0)/filteredData.length || 0;
+            const avgFloor = filteredData.reduce((a,b)=>a+b.floor,0)/filteredData.length || 0;
+            const avgRange = filteredData.filter(r => r.range !== null).length > 0 
+                ? filteredData.filter(r => r.range !== null).reduce((a,b)=>a+b.range,0) / filteredData.filter(r => r.range !== null).length 
+                : 0;
+
+            let apparatusData = [
+                { name: 'Vault', avg: avgVault, color: '#ff00aa' },
+                { name: 'Bars', avg: avgBars, color: '#a020f0' },
+                { name: 'Beam', avg: avgBeam, color: '#aaff00' },
+                { name: 'Floor', avg: avgFloor, color: '#00f0ff' },
+                { name: 'Range', avg: avgRange, color: '#eab308' }
+            ];
+
+            apparatusData.sort((a, b) => b.avg - a.avg);
+
+            const labels = apparatusData.map(item => item.name);
+            const dataValues = apparatusData.map(item => item.avg);
+            const colors = apparatusData.map(item => item.color);
+
+            charts.avg = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        data: dataValues, 
+                        backgroundColor: colors, 
+                        borderRadius: 12 
+                    }] 
+                },
+                options: { 
+                    indexAxis: 'y', 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: '#27272a' } },
+                        y: { grid: { color: '#27272a' } }
+                    }
+                }
+            });
+        }
+
+        function createPositionsChart() {
+            const canvas = document.getElementById('positionsChart');
+            if (!canvas) return;
+            if (charts.positions) charts.positions.destroy();
+            charts.positions = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: filteredData.map(d => formatDate(d.date)), datasets: [{ label: 'Overall Position', data: filteredData.map(d => d.overall_pos), borderColor: '#ffaa00', borderWidth: 5, tension: 0.2 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { reverse: true, min: 1 } }, plugins: { legend: { labels: { color: '#ddd' } } } }
+            });
+        }
+
+        function renderApparatusAnalytics() {
+            const container = document.getElementById('apparatusExtraAnalytics');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const apparatuses = [
+                { name: 'Vault', key: 'vault', color: '#ff00aa' },
+                { name: 'Bars', key: 'bars', color: '#a020f0' },
+                { name: 'Beam', key: 'beam', color: '#aaff00' },
+                { name: 'Floor', key: 'floor', color: '#00f0ff' },
+                { name: 'Range', key: 'range', color: '#eab308' }
+            ];
+
+            apparatuses.forEach(app => {
+                const scores = filteredData.map(r => r[app.key]).filter(s => s !== undefined && s !== null);
+                if (scores.length === 0) return;
+
+                const high = Math.max(...scores);
+                const avg = scores.reduce((a,b) => a + b, 0) / scores.length;
+                const latest = filteredData[filteredData.length - 1][app.key] !== null ? filteredData[filteredData.length - 1][app.key] : '-';
+                const diff = latest !== '-' ? (latest - avg).toFixed(2) : 'N/A';
+
+                const html = `
+                <div class="glass rounded-3xl p-6 text-center">
+                    <div class="text-lg font-medium mb-1" style="color:${app.color}">${app.name}</div>
+                    <div class="text-4xl font-semibold mb-4">${high}</div>
+                    <div class="flex justify-between text-xs mb-4">
+                        <div class="text-zinc-400">HIGH</div>
+                        <div class="text-emerald-400">LATEST ${latest}</div>
+                    </div>
+                    <div class="h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                        <div class="h-full" style="background:linear-gradient(to right,transparent,${app.color});width:${latest !== '-' ? ((latest / high) * 100).toFixed(0) + '%' : '0%'}"></div>
+                    </div>
+                    <div class="text-xs flex justify-between">
+                        <span class="text-zinc-400">Avg ${avg.toFixed(2)}</span>
+                        <span class="${diff > 0 && diff !== 'N/A' ? 'text-emerald-400' : diff < 0 ? 'text-amber-400' : 'text-zinc-400'}">
+                            ${diff !== 'N/A' ? (diff > 0 ? '+' : '') + diff : ''}
+                        </span>
+                    </div>
+                </div>`;
+                container.innerHTML += html;
+            });
+        }
+
+        function exportCSV() {
+            let csv = "Date,Competition,Vault,Bars,Beam,Floor,Range,Total,Average,Overall Position\n";
+            filteredData.forEach(row => {
+                const rangeVal = row.range !== null ? row.range : '';
+                csv += `${row.date},${row.competition},${row.vault},${row.bars},${row.beam},${row.floor},${rangeVal},${row.total},${row.average},${row.overall_pos}\n`;
+            });
+            const link = document.createElement('a');
+            link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+            link.download = 'maisy_gymnastics_results.csv';
+            link.click();
+        }
+
+        function navigateTo(section) {
+            document.querySelectorAll('#overview, #trends, #apparatus, #rankings, #data').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(section);
+            if (target) target.classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            const activeLink = document.getElementById('nav-' + section);
+            if (activeLink) activeLink.classList.add('active');
+            
+            currentSection = section;
+
+            if (section === 'trends') setTimeout(() => { createTotalChart(); createApparatusChart(); }, 50);
+            if (section === 'apparatus') setTimeout(() => { createAvgApparatusChart(); renderApparatusAnalytics(); }, 50);
+            if (section === 'rankings') setTimeout(() => { createPositionsChart(); }, 50);
+        }
+
+        // Initialize
+        window.onload = function() {
+            populateCompetitionFilter();
+            populateTable();
+            
+            setTimeout(() => {
+                createTotalChart();
+                createApparatusChart();
+                createAvgApparatusChart();
+                createPositionsChart();
+                renderApparatusAnalytics();
+            }, 150);
+
+            console.log('%c✅ Final version: Grading Prep renamed to Grading. Ready!', 'color:#ff00aa; font-weight:bold');
+        };
+    </script>
+</body>
+</html>
